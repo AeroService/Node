@@ -1,9 +1,9 @@
-# Template
+# Node
 
-[![license](https://img.shields.io/github/license/AeroService/Template?style=for-the-badge&color=b2204c)](../LICENSE)
+[![license](https://img.shields.io/github/license/AeroService/Node?style=for-the-badge&color=b2204c)](../LICENSE)
 [![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=for-the-badge)](https://github.com/RichardLitt/standard-readme)
 
-A template repository for all others projects
+A node data structure
 
 # Table of contents
 

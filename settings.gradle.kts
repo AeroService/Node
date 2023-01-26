@@ -25,4 +25,4 @@ pluginManagement {
     }
 }
 
-rootProject.name = "Template"
+rootProject.name = "Node"
