@@ -14,16 +14,3 @@
  * limitations under the License.
  */
 
-enableFeaturePreview("STABLE_CONFIGURATION_CACHE")
-enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
-enableFeaturePreview("VERSION_CATALOGS")
-
-pluginManagement {
-    includeBuild("build-logic")
-    repositories {
-        gradlePluginPortal()
-    }
-}
-
-rootProject.name = "Node"
-include("core")

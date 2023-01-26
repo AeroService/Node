@@ -25,17 +25,21 @@ plugins {
 defaultTasks("build", "test", "shadowJar")
 
 allprojects {
-    group = "org.aero.common"
+    group = "org.aero.node"
     version = "1.0.0-SNAPSHOT"
-    description = "A common core library"
+    description = "A node data structure"
 
     repositories {
         mavenCentral()
 
         maven("https://oss.sonatype.org/content/repositories/snapshots/")
         maven("https://s01.oss.sonatype.org/content/repositories/snapshots/")
-    }
 
+        mavenLocal()
+    }
+}
+
+subprojects {
     apply(plugin = "maven-publish")
 
     apply(plugin = "java-library")
@@ -45,6 +49,9 @@ allprojects {
     dependencies {
         "implementation"(rootProject.libs.annotations)
         "implementation"(rootProject.libs.slf4j)
+
+        "api"(rootProject.libs.common)
+        "api"(rootProject.libs.bundles.conversion)
 
         "testImplementation"(rootProject.libs.bundles.junit)
         "testImplementation"(rootProject.libs.bundles.mockito)

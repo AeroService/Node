@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2023 AeroService
+ * Copyright 2020-2022 NatroxMC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,28 @@
  * limitations under the License.
  */
 
-enableFeaturePreview("STABLE_CONFIGURATION_CACHE")
-enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
-enableFeaturePreview("VERSION_CATALOGS")
+package org.aero.node.core;
 
-pluginManagement {
-    includeBuild("build-logic")
-    repositories {
-        gradlePluginPortal()
-    }
+import org.jetbrains.annotations.Nullable;
+
+interface NodeValue<N extends ScopedNode<N>, A extends AbstractNode<N, A>> {
+
+    @Nullable Object get();
+
+    void set(@Nullable Object value);
+
+    @Nullable A putChild(Object key, @Nullable A value);
+
+    @Nullable A putChildIfAbsent(Object key, @Nullable A value);
+
+    @Nullable A child(@Nullable Object key);
+
+    Iterable<A> iterateChildren();
+
+    NodeValue<N, A> copy(A holder);
+
+    boolean isEmpty();
+
+    void clear();
+
 }
-
-rootProject.name = "Node"
-include("core")

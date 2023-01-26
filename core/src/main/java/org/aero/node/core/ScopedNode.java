@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2023 AeroService
+ * Copyright 2020-2022 NatroxMC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,10 @@
  * limitations under the License.
  */
 
-enableFeaturePreview("STABLE_CONFIGURATION_CACHE")
-enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
-enableFeaturePreview("VERSION_CATALOGS")
+package org.aero.node.core;
 
-pluginManagement {
-    includeBuild("build-logic")
-    repositories {
-        gradlePluginPortal()
-    }
+public interface ScopedNode<N extends ScopedNode<N>> extends Node {
+
+    N self();
+
 }
-
-rootProject.name = "Node"
-include("core")
