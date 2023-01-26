@@ -18,10 +18,8 @@ package org.aero.node.core;
 
 import org.aero.common.core.validate.Check;
 import org.aero.conversion.core.ConversionBus;
+import org.aero.conversion.core.ObjectMappingConversionBus;
 import org.aero.conversion.core.exception.ConversionException;
-import org.aero.conversion.objectmapper.ObjectMapper;
-import org.aero.conversion.objectmapper.converter.MapToObjectConverterFactory;
-import org.aero.conversion.objectmapper.converter.ObjectToMapConverter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -34,7 +32,7 @@ import java.util.function.Supplier;
 
 abstract class AbstractNode<N extends ScopedNode<N>, A extends AbstractNode<N, A>> implements ScopedNode<N> {
 
-    private final ConversionBus conversionService = ConversionBus.createDefault();
+    private final ConversionBus conversionService = ObjectMappingConversionBus.createDefault();
 
     volatile boolean attached;
     volatile @Nullable Object key;
@@ -53,7 +51,6 @@ abstract class AbstractNode<N extends ScopedNode<N>, A extends AbstractNode<N, A
         if (parent == null) {
             this.attached = true;
         }
-        this.register();
     }
 
     protected AbstractNode(@Nullable A parent, A copyOf) {
@@ -61,14 +58,6 @@ abstract class AbstractNode<N extends ScopedNode<N>, A extends AbstractNode<N, A
         this.key = copyOf.key;
         this.parent = parent;
         this.value = copyOf.value.copy(this.implSelf());
-        this.register();
-    }
-
-    //TODO: remove
-    private void register() {
-        this.conversionService.register(Object.class, Map.class, new ObjectToMapConverter(ObjectMapper.factory()));
-        this.conversionService.register(Map.class, Object.class,
-            new MapToObjectConverterFactory(ObjectMapper.factory()));
     }
 
     @Override
