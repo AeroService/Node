@@ -27,20 +27,20 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 final class ListNodeValue<N extends ScopedNode<N>, A extends AbstractNode<N, A>> implements NodeValue<N, A> {
 
-    @SuppressWarnings({"rawtypes"})
-    static final AtomicReferenceFieldUpdater<ListNodeValue, List> VALUES_HANDLE =
-        AtomicReferenceFieldUpdater.newUpdater(ListNodeValue.class, List.class, "values");
-
     static final Object UNALLOCATED_IDX = new Object() {
+
     };
     private final A holder;
-    volatile List<A> values = new ArrayList<>();
+    private volatile List<A> values;
+
     ListNodeValue(A holder) {
         this.holder = holder;
+        this.values = new ArrayList<>();
     }
 
     ListNodeValue(A holder, final @Nullable Object startValue) {
         this.holder = holder;
+        this.values = new ArrayList<>();
         if (startValue != null) {
             A child = holder.createNode(0);
             child.attached = true;
@@ -49,34 +49,28 @@ final class ListNodeValue<N extends ScopedNode<N>, A extends AbstractNode<N, A>>
         }
     }
 
-    static boolean likelyListKey(@Nullable Object key) {
-        return key instanceof Integer || key == UNALLOCATED_IDX;
+    private List<A> createList() {
+        return Collections.synchronizedList(new ArrayList<>());
     }
 
     @Override
     public Object get() {
-        synchronized (this.values) {
-            final List<Object> ret = new ArrayList<>(this.values.size());
-            for (A obj : this.values) {
-                ret.add(obj.get()); // unwrap
-            }
-            return ret;
+        final List<Object> ret = new ArrayList<>(this.values.size());
+        for (A obj : this.values) {
+            ret.add(obj.get()); // unwrap
         }
+        return ret;
     }
 
     public List<N> unwrapped() {
-        final List<A> orig = this.values;
-        synchronized (orig) {
-            final List<N> ret = new ArrayList<>(orig.size());
-            for (A element : orig) {
-                ret.add(element.self());
-            }
-            return Collections.unmodifiableList(ret);
+        final List<N> ret = new ArrayList<>(this.values.size());
+        for (A element : this.values) {
+            ret.add(element.self());
         }
+        return Collections.unmodifiableList(ret);
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public void set(@Nullable Object value) {
         if (!(value instanceof Collection<?>)) {
             value = Collections.singleton(value);
@@ -96,7 +90,11 @@ final class ListNodeValue<N extends ScopedNode<N>, A extends AbstractNode<N, A>>
             child.setRaw(o);
             ++count;
         }
-        detachNodes(VALUES_HANDLE.getAndSet(this, newValue));
+        synchronized (this) {
+            final List<A> oldList = this.values;
+            this.values = newValue;
+            this.detachChildren(oldList);
+        }
     }
 
     @Override
@@ -112,50 +110,42 @@ final class ListNodeValue<N extends ScopedNode<N>, A extends AbstractNode<N, A>>
     private @Nullable A putChildInternal(final Object index, final @Nullable A value, final boolean onlyIfAbsent) {
         if (index == UNALLOCATED_IDX) {
             if (value != null) { // can't remove an unallocated node
-                List<A> values;
-                do {
-                    // Allocate an index for the newly added node
-                    values = this.values;
-                    values.add(value);
-                    value.key = values.lastIndexOf(value);
-                } while (!VALUES_HANDLE.compareAndSet(this, values, values));
+                // Allocate an index for the newly added node
+                List<A> values = this.values;
+                values.add(value);
+                value.key = values.lastIndexOf(value);
             }
             return null;
         } else {
-            return putChildInternal((int) index, value, onlyIfAbsent);
+            return this.putChildInternal((int) index, value, onlyIfAbsent);
         }
     }
 
     private @Nullable A putChildInternal(final int index, final @Nullable A value, final boolean onlyIfAbsent) {
         @Nullable A ret = null;
-        List<A> values;
-        do {
-            values = this.values;
-            synchronized (values) {
-                if (value == null) {
-                    // only remove actually existing values
-                    if (index >= 0 && index < values.size()) {
-                        // remove the value
-                        ret = values.remove(index);
-                        // update indexes for subsequent elements
-                        for (int i = index; i < values.size(); ++i) {
-                            values.get(i).key = index;
-                        }
-                    }
-                } else {
-                    // check if the index is in range
-                    if (index >= 0 && index < values.size()) {
-                        if (onlyIfAbsent) {
-                            return values.get(index);
-                        } else {
-                            ret = values.set(index, value);
-                        }
-                    } else {
-                        values.add(index, value);
-                    }
+        final List<A> values = this.values;
+        if (value == null) {
+            // only remove actually existing values
+            if (index >= 0 && index < values.size()) {
+                // remove the value
+                ret = values.remove(index);
+                // update indexes for subsequent elements
+                for (int i = index; i < values.size(); ++i) {
+                    values.get(i).key = index;
                 }
             }
-        } while (!VALUES_HANDLE.compareAndSet(this, values, values));
+        } else {
+            // check if the index is in range
+            if (index >= 0 && index < values.size()) {
+                if (onlyIfAbsent) {
+                    return values.get(index);
+                } else {
+                    return values.set(index, value);
+                }
+            } else {
+                values.add(index, value);
+            }
+        }
         return ret;
     }
 
@@ -171,34 +161,24 @@ final class ListNodeValue<N extends ScopedNode<N>, A extends AbstractNode<N, A>>
         }
          */
 
-        synchronized (this.values) {
-            if (value >= this.values.size()) {
-                return null;
-            }
-            return this.values.get(value);
+        if (value >= this.values.size()) {
+            return null;
         }
+        return this.values.get(value);
     }
 
     @Override
     public Iterable<A> iterateChildren() {
-        synchronized (this.values) {
-            return Collections.unmodifiableCollection(this.values);
-        }
+        return Collections.unmodifiableCollection(this.values);
     }
 
     @Override
     public ListNodeValue<N, A> copy(final A holder) {
         ListNodeValue<N, A> copy = new ListNodeValue<>(holder);
-        List<A> copyValues;
-
-        synchronized (this.values) {
-            copyValues = new ArrayList<>(this.values.size());
-            for (A obj : this.values) {
-                copyValues.add(obj.copy(holder)); // recursively copy
-            }
+        for (A obj : this.values) {
+            copy.values.add(obj.copy(holder)); // recursively copy
         }
 
-        copy.values = copyValues;
         return copy;
     }
 
@@ -207,22 +187,13 @@ final class ListNodeValue<N extends ScopedNode<N>, A extends AbstractNode<N, A>>
         return this.values.isEmpty();
     }
 
-    private void detachNodes(List<A> children) {
-        synchronized (children) {
-            for (A node : children) {
-                node.attached = false;
-                if (Objects.equals(node.parent(), this.holder)) {
-                    node.clear();
-                }
-            }
-        }
-    }
-
     @Override
-    @SuppressWarnings("unchecked")
     public void clear() {
-        final List<A> oldValues = VALUES_HANDLE.getAndSet(this, new ArrayList<>());
-        detachNodes(oldValues);
+        synchronized (this) {
+            final List<A> oldList = this.values;
+            this.values = this.createList();
+            this.detachChildren(oldList);
+        }
     }
 
     @Override
@@ -241,5 +212,14 @@ final class ListNodeValue<N extends ScopedNode<N>, A extends AbstractNode<N, A>>
     @Override
     public int hashCode() {
         return this.values.hashCode();
+    }
+
+    private void detachChildren(List<A> children) {
+        for (A node : children) {
+            node.attached = false;
+            if (Objects.equals(node.parent(), this.holder)) {
+                node.clear();
+            }
+        }
     }
 }

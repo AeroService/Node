@@ -23,63 +23,57 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 final class MapNodeValue<N extends ScopedNode<N>, A extends AbstractNode<N, A>> implements NodeValue<N, A> {
 
     private final A holder;
-    volatile Map<Object, A> values;
+    private volatile Map<Object, A> values;
 
     MapNodeValue(A holder) {
         this.holder = holder;
-        this.values = this.newMap();
+        this.values = this.createMap();
     }
 
-    private Map<Object, A> newMap() {
-        // Map<Object, A> ret = this.holder.options().mapFactory().create();
-        Map<Object, A> ret = new ConcurrentHashMap<>();
-        if (!(ret instanceof ConcurrentMap<Object, A>)) {
-            return Collections.synchronizedMap(ret);
-        } else {
-            return ret;
-        }
+    private Map<Object, A> createMap() {
+        return new ConcurrentHashMap<>();
     }
 
     @Override
     public Object get() {
-        Map<Object, Object> value = new LinkedHashMap<>();
-        for (Map.Entry<Object, A> ent : this.values.entrySet()) {
-            value.put(ent.getKey(), ent.getValue().get()); // unwrap key from the backing node
+        final Map<Object, Object> ret = new LinkedHashMap<>();
+        for (final Map.Entry<Object, A> ent : this.values.entrySet()) {
+            ret.put(ent.getKey(), ent.getValue().get()); // unwrap key from the backing node
         }
-        return value;
+        return ret;
     }
 
     public Map<Object, N> unwrapped() {
-        final Map<Object, N> unwrapped = new LinkedHashMap<>();
-        this.values.forEach((k, v) -> unwrapped.put(k, v.self()));
-        return Collections.unmodifiableMap(unwrapped);
+        final Map<Object, N> ret = new LinkedHashMap<>();
+        for (final Map.Entry<Object, A> ent : this.values.entrySet()) {
+            ret.put(ent.getKey(), ent.getValue().self());
+        }
+        return Collections.unmodifiableMap(ret);
     }
 
     @Override
     public void set(@Nullable Object value) {
-        if (value instanceof Map) {
-            final Map<Object, A> newValue = newMap();
-            for (Map.Entry<?, ?> ent : ((Map<?, ?>) value).entrySet()) {
-                if (ent.getValue() == null) {
-                    continue;
-                }
-                final A child = this.holder.createNode(ent.getKey());
-                newValue.put(ent.getKey(), child);
-                child.attached = true;
-                child.setRaw(ent.getValue());
-            }
-            synchronized (this) {
-                final Map<Object, A> oldMap = this.values;
-                this.values = newValue;
-                detachChildren(oldMap);
-            }
-        } else {
+        if (!(value instanceof Map)) {
             throw new IllegalArgumentException("Map configuration values can only be set to values of type Map");
+        }
+        final Map<Object, A> newValue = createMap();
+        for (final Map.Entry<?, ?> ent : ((Map<?, ?>) value).entrySet()) {
+            if (ent.getValue() == null) {
+                continue;
+            }
+            final A child = this.holder.createNode(ent.getKey());
+            newValue.put(ent.getKey(), child);
+            child.attached = true;
+            child.setRaw(ent.getValue());
+        }
+        synchronized (this) {
+            final Map<Object, A> oldMap = this.values;
+            this.values = newValue;
+            this.detachChildren(oldMap);
         }
     }
 
@@ -125,21 +119,12 @@ final class MapNodeValue<N extends ScopedNode<N>, A extends AbstractNode<N, A>> 
         return this.values.isEmpty();
     }
 
-    private void detachChildren(final Map<Object, A> map) {
-        for (A value : map.values()) {
-            value.attached = false;
-            if (Objects.equals(value.parent(), this.holder)) {
-                value.clear();
-            }
-        }
-    }
-
     @Override
     public void clear() {
         synchronized (this) {
-            Map<Object, A> oldMap = this.values;
-            this.values = newMap();
-            detachChildren(oldMap);
+            final Map<Object, A> oldMap = this.values;
+            this.values = this.createMap();
+            this.detachChildren(oldMap);
         }
     }
 
@@ -159,5 +144,14 @@ final class MapNodeValue<N extends ScopedNode<N>, A extends AbstractNode<N, A>> 
     @Override
     public int hashCode() {
         return this.values.hashCode();
+    }
+
+    private void detachChildren(final Map<Object, A> map) {
+        for (A value : map.values()) {
+            value.attached = false;
+            if (Objects.equals(value.parent(), this.holder)) {
+                value.clear();
+            }
+        }
     }
 }

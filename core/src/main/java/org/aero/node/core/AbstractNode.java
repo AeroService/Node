@@ -76,7 +76,7 @@ abstract class AbstractNode<N extends ScopedNode<N>, A extends AbstractNode<N, A
         A pointer = this.implSelf();
         for (final Object element : path) {
             Check.notNull(element, "element in path");
-            pointer = pointer.child(element, false);
+            pointer = pointer.child(element);
         }
         return pointer.self();
     }
@@ -99,7 +99,7 @@ abstract class AbstractNode<N extends ScopedNode<N>, A extends AbstractNode<N, A
     public final @NotNull N appendChild() {
         // the appended node can have a key of -1
         // the "real" key will be determined when the node is inserted into a list config value
-        return this.child(ListNodeValue.UNALLOCATED_IDX, false).self();
+        return this.child(ListNodeValue.UNALLOCATED_IDX).self();
     }
 
     @Override
@@ -139,18 +139,18 @@ abstract class AbstractNode<N extends ScopedNode<N>, A extends AbstractNode<N, A
 
     @Override
     public <T> @Nullable T getAs(@NotNull Class<T> type) {
-        return this.get0(type, true);
+        return this.get0(type);
     }
 
     @Override
     public <T> @Nullable T getAsOrDefault(@NotNull Class<T> type, T def) {
-        T value = this.get0(type, false);
+        T value = this.get0(type);
         return value == null ? this.storeDefault(def) : value;
     }
 
     @Override
     public <T> @Nullable T getAsOrDefault(@NotNull Class<T> type, @NotNull Supplier<T> defSupplier) {
-        T value = this.get0(type, false);
+        T value = this.get0(type);
         return value == null ? this.storeDefault(defSupplier.get()) : value;
     }
 
@@ -160,7 +160,7 @@ abstract class AbstractNode<N extends ScopedNode<N>, A extends AbstractNode<N, A
     }
 
     @SuppressWarnings("ConstantConditions")
-    private <T> @Nullable T get0(@NotNull Class<T> type, boolean doImplicitInit) {
+    private <T> @Nullable T get0(@NotNull Class<T> type) {
         Check.notNull(type, "type");
         //if (isMissingTypeParameters(type)) {
         //    throw new SerializationException(this, type, "Raw types are not supported");
@@ -387,25 +387,13 @@ abstract class AbstractNode<N extends ScopedNode<N>, A extends AbstractNode<N, A
         return value instanceof MapNodeValue<N, A> mapValue ? mapValue.unwrapped() : Collections.emptyMap();
     }
 
-    protected final A child(final Object key, boolean attach) {
+    protected final A child(final Object key) {
         A child = this.value.child(key);
 
         // child doesn't currently exist
         if (child == null) {
-            if (attach) {
-                // attach ourselves first
-                this.attachIfNecessary();
-                // insert the child node into the value
-                final @Nullable A existingChild = this.value.putChildIfAbsent(key, child = this.createNode(key));
-                if (existingChild != null) {
-                    child = existingChild;
-                } else {
-                    this.attachChild(child);
-                }
-            } else {
-                // just create a new virtual (detached) node
-                child = this.createNode(key);
-            }
+            // just create a new virtual (detached) node
+            child = this.createNode(key);
         }
 
         return child;
@@ -419,7 +407,8 @@ abstract class AbstractNode<N extends ScopedNode<N>, A extends AbstractNode<N, A
     protected final @Nullable A parentEnsureAttached() {
         @Nullable A parent = this.parent;
         if (parent != null && parent.isVirtual()) {
-            parent = parent.parentEnsureAttached().attachChildIfAbsent(parent);
+            A temp = parent.parentEnsureAttached();
+            parent = temp != null ? temp.attachChildIfAbsent(parent) : null;
         }
         return this.parent = parent;
     }
@@ -444,8 +433,7 @@ abstract class AbstractNode<N extends ScopedNode<N>, A extends AbstractNode<N, A
     private A attachChild(final A child, final boolean onlyIfAbsent) {
         // ensure this node is attached
         if (this.isVirtual()) {
-            throw new IllegalStateException(
-                "This parent is not currently attached. This is an internal state violation.");
+            throw new IllegalStateException("This parent is not currently attached. This is an internal state violation.");
         }
 
         // ensure the child actually is a child
@@ -465,7 +453,7 @@ abstract class AbstractNode<N extends ScopedNode<N>, A extends AbstractNode<N, A
                 }
             } else {
                 // if the existing value isn't a map, we need to update it's type
-                if (ListNodeValue.likelyListKey(child.key)) {
+                if (child.key instanceof Integer || child.key == ListNodeValue.UNALLOCATED_IDX) {
                     // if child.key is an integer, we can infer that the type of this node should be a list
                     if (oldValue instanceof NullNodeValue) {
                         // if the oldValue was null, we can just replace it with an empty list
