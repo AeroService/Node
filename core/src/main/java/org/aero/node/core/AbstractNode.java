@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-abstract class AbstractNode<N extends ScopedNode<N>, A extends AbstractNode<N, A>> implements ScopedNode<N> {
+public abstract class AbstractNode<N extends ScopedNode<N>, A extends AbstractNode<N, A>> implements ScopedNode<N> {
 
     private final ConversionBus conversionService = ObjectMappingConversionBus.createDefault();
 
