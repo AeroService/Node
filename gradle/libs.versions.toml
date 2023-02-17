@@ -12,7 +12,7 @@ mockito = "4.11.0"
 
 # general
 annotations = "24.0.0"
-slf4j = "1.7.36"
+slf4j = "2.0.6"
 common = "1.0.0-SNAPSHOT"
 conversion = "1.0.0-SNAPSHOT"
 
